@@ -7,6 +7,8 @@
             let dropzoneElement = form_widget.parentElement;
             dropzoneElement.classList.add('dropzone');
 
+            let testChamp = jQuery('#add_property_arrayIdMedia').val();
+
             function initPrototype(id) {
                 {% if multiple %}
                 element = document.createElement('input');
@@ -112,6 +114,14 @@
                     this.on('success', function (file, result) {
                         if (result.id) {
                             file.id = result.id;
+
+                                // After Upload procedure - ethsam
+                                if ( jQuery('#add_property_arrayIdMedia').val() === '' ) {
+                                    jQuery('#add_property_arrayIdMedia').val(result.id.toString() + ",");
+                                } else {
+                                    jQuery('#add_property_arrayIdMedia').val( jQuery('#add_property_arrayIdMedia').val() + result.id.toString() + ",");
+                                }
+
                             initPrototype(result.id);
                         }
                     });
@@ -125,6 +135,12 @@
                 },
                 removedfile: function (file) {
                     if (file.id) {
+
+                        // Remove procedure - ethsam
+                        let textInputHidden = document.getElementById("add_property_arrayIdMedia").value;
+                        let result = textInputHidden.replace(file.id.toString() + ",", "");
+                        document.getElementById("add_property_arrayIdMedia").value = result;
+
                         const uri = '{{ path(removeHandler,{'id': 'file_id' }) }}';
                         const options_remove = {};
                         {% if removeHandlerMethod %}
@@ -147,7 +163,6 @@
                         {% endif %}
                     }
                     file.previewElement.remove();
-
 
                 }
             });
