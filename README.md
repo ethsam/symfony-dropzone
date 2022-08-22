@@ -1,7 +1,7 @@
 # Symfony DropzoneType
 
 Extends the SymfonyForm component. Adds the new form type DropzoneType
-Use DropzoneType in form with relation other entity.
+Use DropzoneType in form with relation other entity "One Form contain 2 entities relation".
 
 Example : form with "Item" entity and DropZoneType link with "Attachment" entity
 
