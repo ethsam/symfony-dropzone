@@ -1,16 +1,16 @@
 <?php
+
+declare(strict_types=1);
+
 namespace Ethsam\SymfonyDropzone\Transformer;
 
-use App\Entity\File;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Form\DataTransformerInterface;
-use Symfony\Component\Form\Exception\TransformationFailedException;
 
 class DropzoneTransformer implements DataTransformerInterface
 {
-
-
-    private $entityManager;
+    private EntityManagerInterface $entityManager;
+    private array $options;
 
     public function __construct(EntityManagerInterface $entityManager, array $options)
     {
@@ -18,15 +18,18 @@ class DropzoneTransformer implements DataTransformerInterface
         $this->options = $options;
     }
 
-    public function transform($value)
+    public function transform(mixed $value): mixed
     {
+        if (null === $value) {
+            return null;
+        }
 
+        return ['dropzone' => $value];
     }
 
-    public function reverseTransform($value)
+    public function reverseTransform(mixed $value): mixed
     {
-
-        if(!isset($value['dropzone'])){
+        if (!isset($value['dropzone'])) {
             return null;
         }
 

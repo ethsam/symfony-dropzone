@@ -1,20 +1,57 @@
 {
     "name": "ethsam/symfony-dropzone",
-    "description": "Symfony Form Type",
-    "type": "library",
+    "description": "Symfony Form Type integrating Dropzone.js for drag-and-drop file uploads with entity relationship support",
+    "type": "symfony-bundle",
     "license": "MIT",
+    "keywords": ["symfony", "dropzone", "form", "upload", "drag-and-drop", "file-upload"],
+    "homepage": "https://github.com/ethsam/symfony-dropzone",
     "autoload": {
         "psr-4": {
             "Ethsam\\SymfonyDropzone\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Ethsam\\SymfonyDropzone\\Tests\\": "tests/"
+        }
+    },
     "authors": [
         {
             "name": "Samuel Etheve",
-            "email": "etheve.samuel@gmail.com"
+            "email": "etheve.samuel@gmail.com",
+            "role": "Maintainer"
+        },
+        {
+            "name": "Emomaliev M.",
+            "role": "Original author",
+            "homepage": "https://github.com/emr-dev"
         }
     ],
+    "support": {
+        "issues": "https://github.com/ethsam/symfony-dropzone/issues",
+        "source": "https://github.com/ethsam/symfony-dropzone"
+    },
     "require": {
-        "symfony/dependency-injection": ">4.3"
-    }
+        "php": ">=8.1",
+        "symfony/dependency-injection": "^5.4 || ^6.0 || ^7.0",
+        "symfony/form": "^5.4 || ^6.0 || ^7.0",
+        "symfony/http-kernel": "^5.4 || ^6.0 || ^7.0",
+        "symfony/config": "^5.4 || ^6.0 || ^7.0",
+        "symfony/options-resolver": "^5.4 || ^6.0 || ^7.0",
+        "symfony/twig-bundle": "^5.4 || ^6.0 || ^7.0",
+        "doctrine/orm": "^2.12 || ^3.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0 || ^11.0",
+        "symfony/phpunit-bridge": "^5.4 || ^6.0 || ^7.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "2.0-dev"
+        }
+    },
+    "minimum-stability": "stable"
 }

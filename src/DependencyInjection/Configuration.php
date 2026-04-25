@@ -1,22 +1,16 @@
 <?php
+
+declare(strict_types=1);
+
 namespace Ethsam\SymfonyDropzone\DependencyInjection;
-use Ethsam\SymfonyDropzone\Form\DropzoneType;
-use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
+
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 class Configuration implements ConfigurationInterface
 {
-
-
-
-    public function getConfigTreeBuilder()
+    public function getConfigTreeBuilder(): TreeBuilder
     {
-        $treeBuilder = new TreeBuilder('symfony-dropzone');
-        return $treeBuilder;
+        return new TreeBuilder('symfony_dropzone');
     }
-
-
-
-
 }

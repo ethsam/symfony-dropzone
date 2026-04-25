@@ -2,171 +2,171 @@
     {{ block('form_widget') }}
     <script>
         (function () {
-            let dropzoneId = '{{ id|default(0) }}_dropzone';
-            let form_widget = document.getElementById(dropzoneId);
-            let dropzoneElement = form_widget.parentElement;
+            var dropzoneId = '{{ id|default(0) }}_dropzone';
+            var formWidget = document.getElementById(dropzoneId);
+            if (!formWidget) return;
+            var dropzoneElement = formWidget.parentElement;
             dropzoneElement.classList.add('dropzone');
-
-            let testChamp = jQuery('#add_property_arrayIdMedia').val();
+            Dropzone.autoDiscover = false;
 
             function initPrototype(id) {
                 {% if multiple %}
-                element = document.createElement('input');
+                var element = document.createElement('input');
                 element.type = 'hidden';
                 element.name = '{{ full_name }}[dropzone][]';
                 element.value = id;
-                dropzoneElement.append(element);
+                element.setAttribute('data-dropzone-file-id', id);
+                dropzoneElement.appendChild(element);
                 {% else %}
-                element = document.createElement('option');
+                var element = document.createElement('option');
                 element.value = id;
                 element.text = id;
                 element.selected = true;
-                form_widget.append(element);
+                formWidget.appendChild(element);
                 {% endif %}
             }
 
-            options = {};
-            {% if maxFiles %}
+            function removePrototype(id) {
+                {% if multiple %}
+                var input = dropzoneElement.querySelector('input[data-dropzone-file-id="' + id + '"]');
+                if (input) input.remove();
+                {% else %}
+                for (var i = 0; i < formWidget.options.length; i++) {
+                    if (formWidget.options[i].value == id) {
+                        formWidget.remove(i);
+                        break;
+                    }
+                }
+                {% if not required %}
+                formWidget.value = '';
+                {% endif %}
+                {% endif %}
+            }
+
+            var options = {};
+            {% if maxFiles is defined and maxFiles %}
             options.maxFiles = {{ maxFiles }};
             {% endif %}
-            {% if uploadHandlerMethod %}
+            {% if uploadHandlerMethod is defined and uploadHandlerMethod %}
             options.method = '{{ uploadHandlerMethod }}';
             {% endif %}
-            {% if withCredentials %}
+            {% if withCredentials is defined and withCredentials %}
             options.withCredentials = {{ withCredentials }};
             {% endif %}
-            {% if thumbnailWidth %}
+            {% if thumbnailWidth is defined and thumbnailWidth %}
             options.thumbnailWidth = {{ thumbnailWidth }};
             {% endif %}
-            {% if thumbnailHeight %}
+            {% if thumbnailHeight is defined and thumbnailHeight %}
             options.thumbnailHeight = {{ thumbnailHeight }};
             {% endif %}
-            {% if thumbnailMethod %}
+            {% if thumbnailMethod is defined and thumbnailMethod %}
             options.thumbnailMethod = '{{ thumbnailMethod }}';
             {% endif %}
-            {% if resizeWidth %}
+            {% if resizeWidth is defined and resizeWidth %}
             options.resizeWidth = {{ resizeWidth }};
             {% endif %}
-            {% if resizeHeight %}
+            {% if resizeHeight is defined and resizeHeight %}
             options.resizeHeight = {{ resizeHeight }};
             {% endif %}
-            {% if resizeMimeType %}
-            options.resizeMimeType = {{ resizeMimeType }};
+            {% if resizeMimeType is defined and resizeMimeType %}
+            options.resizeMimeType = '{{ resizeMimeType }}';
             {% endif %}
-            {% if resizeMethod %}
+            {% if resizeMethod is defined and resizeMethod %}
             options.resizeMethod = '{{ resizeMethod }}';
             {% endif %}
-            {% if filesizeBase %}
+            {% if filesizeBase is defined and filesizeBase %}
             options.filesizeBase = {{ filesizeBase }};
             {% endif %}
-            {% if headers is iterable %}
-            header_object = {};
-            {% for key,value in headers %}
-            var key = '{{ key }}';
-            header_object[key] = '{{ value }}';
+            {% if headers is defined and headers is iterable %}
+            var headerObject = {};
+            {% for key, value in headers %}
+            headerObject['{{ key }}'] = '{{ value }}';
             {% endfor %}
-            options.headers = header_object;
+            options.headers = headerObject;
             {% endif %}
-            {% if ignoreHiddenFiles %}
-            options.ignoreHiddenFiles = {{ ignoreHiddenFiles }};
+            {% if ignoreHiddenFiles is defined %}
+            options.ignoreHiddenFiles = {{ ignoreHiddenFiles ? 'true' : 'false' }};
             {% endif %}
-            {% if acceptedFiles %}
+            {% if acceptedFiles is defined and acceptedFiles %}
             options.acceptedFiles = '{{ acceptedFiles }}';
             {% endif %}
-            {% if autoProcessQueue %}
-            options.autoProcessQueue = {{ autoProcessQueue }};
+            {% if autoProcessQueue is defined %}
+            options.autoProcessQueue = {{ autoProcessQueue ? 'true' : 'false' }};
             {% endif %}
-            {% if autoQueue %}
-            options.autoQueue = {{ autoQueue }};
+            {% if autoQueue is defined %}
+            options.autoQueue = {{ autoQueue ? 'true' : 'false' }};
             {% endif %}
-            {% if addRemoveLinks %}
-            options.addRemoveLinks = {{ addRemoveLinks }};
+            {% if addRemoveLinks is defined %}
+            options.addRemoveLinks = {{ addRemoveLinks ? 'true' : 'false' }};
             {% endif %}
-            {% if previewsContainer %}
+            {% if previewsContainer is defined and previewsContainer %}
             options.previewsContainer = '{{ previewsContainer }}';
             {% endif %}
-            let myDropzone = new Dropzone(dropzoneElement, {
+
+            new Dropzone(dropzoneElement, {
                 url: '{{ path(uploadHandler) }}',
                 ...options,
                 init: function () {
-                    var myDropzone = this;
+                    var dz = this;
+                    {% if files is defined and files %}
                     {% for file in files %}
-                    src = '{{ attribute(file, choice_src) }}';
-                    var mockFile = {
-                        id: '{{ file.id }}',
-                        name: '{{ file.filename }}',
-                        status: Dropzone.ADDED,
-                        url: src
-                    };
-                    {% if  file.size is defined %}
-                    mockFile.size = '{{ file.size }}';
-                    {% endif %}
-                    {% if  file.mimetype is defined %}
-                    mockFile.type = '{{ file.mimetype }}';
-                    {% endif %}
-                    myDropzone.emit("addedfile", mockFile);
-                    myDropzone.emit("thumbnail", mockFile, src);
-                    myDropzone.emit("complete", mockFile);
-                    myDropzone.files.push(mockFile);
-                    initPrototype('{{ file.id }}');
+                    (function () {
+                        var src = '{{ attribute(file, choice_src) }}';
+                        var mockFile = {
+                            id: '{{ file.id }}',
+                            name: '{{ file.filename }}',
+                            status: Dropzone.ADDED,
+                            url: src
+                        };
+                        {% if file.size is defined %}
+                        mockFile.size = {{ file.size }};
+                        {% endif %}
+                        {% if file.mimetype is defined %}
+                        mockFile.type = '{{ file.mimetype }}';
+                        {% endif %}
+                        dz.emit('addedfile', mockFile);
+                        dz.emit('thumbnail', mockFile, src);
+                        dz.emit('complete', mockFile);
+                        dz.files.push(mockFile);
+                        initPrototype('{{ file.id }}');
+                    })();
                     {% endfor %}
+                    {% endif %}
 
                     this.on('success', function (file, result) {
-                        if (result.id) {
+                        if (result && result.id) {
                             file.id = result.id;
-
-                                // After Upload procedure - ethsam
-                                if ( jQuery('#add_property_arrayIdMedia').val() === '' ) {
-                                    jQuery('#add_property_arrayIdMedia').val(result.id.toString() + ",");
-                                } else {
-                                    jQuery('#add_property_arrayIdMedia').val( jQuery('#add_property_arrayIdMedia').val() + result.id.toString() + ",");
-                                }
-
                             initPrototype(result.id);
                         }
                     });
                 },
                 sending: function (file, xhr, formData) {
-                    {% if headers is iterable %}
-                    {% for key,value in formData %}
+                    {% if formData is defined and formData is iterable %}
+                    {% for key, value in formData %}
                     formData.append('{{ key }}', '{{ value }}');
                     {% endfor %}
                     {% endif %}
                 },
                 removedfile: function (file) {
                     if (file.id) {
-
-                        // Remove procedure - ethsam
-                        let textInputHidden = document.getElementById("add_property_arrayIdMedia").value;
-                        let result = textInputHidden.replace(file.id.toString() + ",", "");
-                        document.getElementById("add_property_arrayIdMedia").value = result;
-
-                        const uri = '{{ path(removeHandler,{'id': 'file_id' }) }}';
-                        const options_remove = {};
-                        {% if removeHandlerMethod %}
-                        options_remove.method = '{{ removeHandlerMethod }}';
+                        removePrototype(file.id);
+                        {% if removeHandler is defined and removeHandler %}
+                        var uri = '{{ path(removeHandler, {"id": "file_id"}) }}';
+                        var removeOptions = {};
+                        {% if removeHandlerMethod is defined and removeHandlerMethod %}
+                        removeOptions.method = '{{ removeHandlerMethod }}';
                         {% endif %}
                         if (options.headers) {
-                            options_remove.headers = options.headers;
+                            removeOptions.headers = options.headers;
                         }
-                        fetch(uri.replace("file_id", file.id), options_remove)
-                        {% if not multiple %}
-                        for (var i=0; i<form_widget.length; i++) {
-                            if (form_widget.options[i].value == file.id){
-                                form_widget.remove(i);
-
-                            }
-                        }
-                        {% if required == false %}
-                        form_widget.value = '';
-                        {% endif %}
+                        fetch(uri.replace('file_id', file.id), removeOptions);
                         {% endif %}
                     }
-                    file.previewElement.remove();
-
+                    if (file.previewElement) {
+                        file.previewElement.remove();
+                    }
                 }
             });
         })();
     </script>
-
 {% endblock %}

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Ethsam\SymfonyDropzone\Form;
 
 use Doctrine\ORM\EntityManagerInterface;
@@ -15,8 +17,7 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 class DropzoneType extends AbstractType
 {
-
-    private $entityManager;
+    private EntityManagerInterface $entityManager;
 
     public function __construct(EntityManagerInterface $entityManager)
     {
@@ -25,7 +26,6 @@ class DropzoneType extends AbstractType
 
     final public function buildForm(FormBuilderInterface $builder, array $options): void
     {
-
         if (false === $options['multiple']) {
             $builder->add(
                 'dropzone',
@@ -50,35 +50,31 @@ class DropzoneType extends AbstractType
             );
         }
 
-
         $builder->addModelTransformer(new DropzoneTransformer($this->entityManager, $options));
 
         parent::buildForm($builder, $options);
     }
 
-    /**
-     * @param OptionsResolver $resolver
-     */
     final public function configureOptions(OptionsResolver $resolver): void
     {
+        $resolver->setRequired(['class', 'uploadHandler', 'removeHandler']);
+
         $resolver->setDefaults([
-            'class' => null,
+            'compound' => true,
             'required' => true,
             'choice_src' => 'src',
             'multiple' => true,
             'maxFiles' => 1,
-            'uploadHandler' => null,
-            'removeHandler' => null,
-            'uploadHandlerMethod' => "POST",
-            'removeHandlerMethod' => "DELETE",
+            'uploadHandlerMethod' => 'POST',
+            'removeHandlerMethod' => 'DELETE',
             'withCredentials' => 0,
             'thumbnailWidth' => 120,
             'thumbnailHeight' => 120,
-            'thumbnailMethod' => "crop",
+            'thumbnailMethod' => 'crop',
             'resizeWidth' => null,
             'resizeHeight' => null,
             'resizeMimeType' => null,
-            'resizeMethod' => "contain",
+            'resizeMethod' => 'contain',
             'filesizeBase' => 1024,
             'headers' => [],
             'formData' => [],
@@ -93,15 +89,9 @@ class DropzoneType extends AbstractType
         parent::configureOptions($resolver);
     }
 
-    /**
-     * @param FormView $view
-     * @param FormInterface $form
-     * @param array $options
-     */
     final public function buildView(FormView $view, FormInterface $form, array $options): void
     {
         /** @var FormView $f */
-
         $f = $view->vars['form'];
 
         $view->vars['formName'] = $f->parent->vars['name'];
@@ -112,12 +102,11 @@ class DropzoneType extends AbstractType
 
         $view->vars['files'] = null;
 
-        if (false == $options['multiple'] and $file = $form->getData()) {
+        if (false === $options['multiple'] && $file = $form->getData()) {
             $view->vars['files'][] = $file;
         } elseif ($form->getData()) {
             $view->vars['files'] = $form->getData();
         }
-
 
         $view->vars['class'] = $options['class'];
         $view->vars['required'] = $options['required'];
@@ -126,7 +115,7 @@ class DropzoneType extends AbstractType
         $view->vars['uploadHandlerMethod'] = $options['uploadHandlerMethod'];
         $view->vars['removeHandlerMethod'] = $options['removeHandlerMethod'];
         $view->vars['formData'] = $options['formData'];
-        $view->vars['choice_src'] = $options["choice_src"];
+        $view->vars['choice_src'] = $options['choice_src'];
         $view->vars['withCredentials'] = $options['withCredentials'];
         $view->vars['thumbnailWidth'] = $options['thumbnailWidth'];
         $view->vars['thumbnailHeight'] = $options['thumbnailHeight'];
@@ -144,13 +133,11 @@ class DropzoneType extends AbstractType
         $view->vars['addRemoveLinks'] = $options['addRemoveLinks'];
         $view->vars['previewsContainer'] = $options['previewsContainer'];
 
-
         parent::buildView($view, $form, $options);
     }
 
-    private function dashesToCamelCase($string, $capitalizeFirstCharacter = false)
+    private function dashesToCamelCase(string $string, bool $capitalizeFirstCharacter = false): string
     {
-
         $str = str_replace('_', '', ucwords($string, '_'));
 
         if (!$capitalizeFirstCharacter) {
@@ -159,5 +146,4 @@ class DropzoneType extends AbstractType
 
         return $str;
     }
-
 }
