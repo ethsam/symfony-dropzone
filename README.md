@@ -283,6 +283,7 @@ That's it! The bundle handles everything:
 | `class` | string | null | **Required.** Entity class for file/attachment objects |
 | `multiple` | bool | true | Enable multiple file mode; set `false` for single file (ManyToOne) |
 | `maxFiles` | int | 1 | Maximum number of files allowed in the dropzone |
+| `maxFilesize` | int\|float\|null | null | Maximum file size in MiB (Dropzone.js `maxFilesize`); `null` keeps Dropzone's default |
 | `uploadHandler` | string | null | **Required.** Symfony route name for file upload endpoint |
 | `removeHandler` | string | null | **Required.** Symfony route name for file removal endpoint |
 | `uploadHandlerMethod` | string | "POST" | HTTP method for upload requests |
@@ -373,6 +374,7 @@ $builder->add('attachments', DropzoneType::class, [
     'class' => Attachment::class,
     'multiple' => true,
     'maxFiles' => 10,
+    'maxFilesize' => 50, // MiB; reject larger files client-side before upload
     'uploadHandler' => 'app_upload_file',
     'removeHandler' => 'app_remove_file',
 ]);

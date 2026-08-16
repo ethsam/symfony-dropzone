@@ -65,6 +65,7 @@ class DropzoneType extends AbstractType
             'choice_src' => 'src',
             'multiple' => true,
             'maxFiles' => 1,
+            'maxFilesize' => null,
             'uploadHandlerMethod' => 'POST',
             'removeHandlerMethod' => 'DELETE',
             'withCredentials' => 0,
@@ -85,6 +86,8 @@ class DropzoneType extends AbstractType
             'addRemoveLinks' => true,
             'previewsContainer' => null,
         ]);
+
+        $resolver->setAllowedTypes('maxFilesize', ['null', 'int', 'float']);
 
         parent::configureOptions($resolver);
     }
@@ -112,6 +115,7 @@ class DropzoneType extends AbstractType
         $view->vars['required'] = $options['required'];
         $view->vars['multiple'] = $options['multiple'];
         $view->vars['maxFiles'] = $options['maxFiles'];
+        $view->vars['maxFilesize'] = $options['maxFilesize'];
         $view->vars['uploadHandlerMethod'] = $options['uploadHandlerMethod'];
         $view->vars['removeHandlerMethod'] = $options['removeHandlerMethod'];
         $view->vars['formData'] = $options['formData'];

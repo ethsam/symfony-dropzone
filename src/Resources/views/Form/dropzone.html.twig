@@ -47,6 +47,9 @@
             {% if maxFiles is defined and maxFiles %}
             options.maxFiles = {{ maxFiles }};
             {% endif %}
+            {% if maxFilesize is defined and maxFilesize %}
+            options.maxFilesize = {{ maxFilesize }};
+            {% endif %}
             {% if uploadHandlerMethod is defined and uploadHandlerMethod %}
             options.method = '{{ uploadHandlerMethod }}';
             {% endif %}
