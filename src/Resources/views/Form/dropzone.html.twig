@@ -1,172 +1,185 @@
 {% block dropzone_widget %}
     {{ block('form_widget') }}
+
+    {#
+        Everything the browser needs travels as JSON inside an HTML attribute.
+        Nothing below is interpolated into the <script> block, so filenames and
+        other stored values can never be parsed as code. Keep it that way: if you
+        ever need a new value in the script, add it to this payload instead.
+    #}
+    {%- set dropzone_files = [] -%}
+    {%- if files is defined and files -%}
+        {%- for file in files -%}
+            {%- set dropzone_file = {
+                id: file.id,
+                name: file.filename,
+                url: attribute(file, choice_src)
+            } -%}
+            {%- if file.size is defined and file.size is not null -%}
+                {%- set dropzone_file = dropzone_file|merge({ size: file.size }) -%}
+            {%- endif -%}
+            {%- if file.mimetype is defined and file.mimetype is not null -%}
+                {%- set dropzone_file = dropzone_file|merge({ type: file.mimetype }) -%}
+            {%- endif -%}
+            {%- set dropzone_files = dropzone_files|merge([dropzone_file]) -%}
+        {%- endfor -%}
+    {%- endif -%}
+
+    {%- set dropzone_config = {
+        widgetId: (id|default(0)) ~ '_dropzone',
+        fullName: full_name,
+        multiple: multiple,
+        required: required,
+        uploadUrl: path(uploadHandler),
+        removeUrl: removeHandler ? path(removeHandler, { 'id': '__DROPZONE_FILE_ID__' }) : null,
+        removeMethod: removeHandlerMethod,
+        formData: dropzoneFormData,
+        files: dropzone_files,
+        options: dropzoneOptions
+    } -%}
+
+    <span hidden data-dropzone-config="{{ dropzone_config|json_encode }}"></span>
     <script>
         (function () {
-            var dropzoneId = '{{ id|default(0) }}_dropzone';
-            var formWidget = document.getElementById(dropzoneId);
+            var holder = document.currentScript ? document.currentScript.previousElementSibling : null;
+
+            if (!holder || !holder.hasAttribute('data-dropzone-config')) {
+                var pending = document.querySelectorAll('[data-dropzone-config]:not([data-dropzone-ready])');
+                holder = pending.length ? pending[pending.length - 1] : null;
+            }
+
+            if (!holder || holder.hasAttribute('data-dropzone-ready')) return;
+            holder.setAttribute('data-dropzone-ready', '');
+
+            var config = JSON.parse(holder.getAttribute('data-dropzone-config'));
+            var formWidget = document.getElementById(config.widgetId);
             if (!formWidget) return;
+
             var dropzoneElement = formWidget.parentElement;
             dropzoneElement.classList.add('dropzone');
             Dropzone.autoDiscover = false;
 
             function initPrototype(id) {
-                {% if multiple %}
-                var element = document.createElement('input');
-                element.type = 'hidden';
-                element.name = '{{ full_name }}[dropzone][]';
-                element.value = id;
-                element.setAttribute('data-dropzone-file-id', id);
-                dropzoneElement.appendChild(element);
-                {% else %}
-                var element = document.createElement('option');
-                element.value = id;
-                element.text = id;
-                element.selected = true;
-                formWidget.appendChild(element);
-                {% endif %}
+                if (config.multiple) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = config.fullName + '[dropzone][]';
+                    input.value = id;
+                    input.setAttribute('data-dropzone-file-id', id);
+                    dropzoneElement.appendChild(input);
+                    return;
+                }
+
+                var option = document.createElement('option');
+                option.value = id;
+                option.text = id;
+                option.selected = true;
+                formWidget.appendChild(option);
             }
 
             function removePrototype(id) {
-                {% if multiple %}
-                var input = dropzoneElement.querySelector('input[data-dropzone-file-id="' + id + '"]');
-                if (input) input.remove();
-                {% else %}
-                for (var i = 0; i < formWidget.options.length; i++) {
-                    if (formWidget.options[i].value == id) {
-                        formWidget.remove(i);
+                if (config.multiple) {
+                    var inputs = dropzoneElement.querySelectorAll('input[data-dropzone-file-id]');
+
+                    for (var i = 0; i < inputs.length; i++) {
+                        if (inputs[i].getAttribute('data-dropzone-file-id') === String(id)) {
+                            inputs[i].remove();
+                            break;
+                        }
+                    }
+
+                    return;
+                }
+
+                for (var j = 0; j < formWidget.options.length; j++) {
+                    if (formWidget.options[j].value == id) {
+                        formWidget.remove(j);
                         break;
                     }
                 }
-                {% if not required %}
-                formWidget.value = '';
-                {% endif %}
-                {% endif %}
+
+                if (!config.required) {
+                    formWidget.value = '';
+                }
+            }
+
+            function emit(name, detail) {
+                dropzoneElement.dispatchEvent(new CustomEvent('dropzone:' + name, {
+                    bubbles: true,
+                    detail: detail
+                }));
             }
 
             var options = {};
-            {% if maxFiles is defined and maxFiles %}
-            options.maxFiles = {{ maxFiles }};
-            {% endif %}
-            {% if uploadHandlerMethod is defined and uploadHandlerMethod %}
-            options.method = '{{ uploadHandlerMethod }}';
-            {% endif %}
-            {% if withCredentials is defined and withCredentials %}
-            options.withCredentials = {{ withCredentials }};
-            {% endif %}
-            {% if thumbnailWidth is defined and thumbnailWidth %}
-            options.thumbnailWidth = {{ thumbnailWidth }};
-            {% endif %}
-            {% if thumbnailHeight is defined and thumbnailHeight %}
-            options.thumbnailHeight = {{ thumbnailHeight }};
-            {% endif %}
-            {% if thumbnailMethod is defined and thumbnailMethod %}
-            options.thumbnailMethod = '{{ thumbnailMethod }}';
-            {% endif %}
-            {% if resizeWidth is defined and resizeWidth %}
-            options.resizeWidth = {{ resizeWidth }};
-            {% endif %}
-            {% if resizeHeight is defined and resizeHeight %}
-            options.resizeHeight = {{ resizeHeight }};
-            {% endif %}
-            {% if resizeMimeType is defined and resizeMimeType %}
-            options.resizeMimeType = '{{ resizeMimeType }}';
-            {% endif %}
-            {% if resizeMethod is defined and resizeMethod %}
-            options.resizeMethod = '{{ resizeMethod }}';
-            {% endif %}
-            {% if filesizeBase is defined and filesizeBase %}
-            options.filesizeBase = {{ filesizeBase }};
-            {% endif %}
-            {% if headers is defined and headers is iterable %}
-            var headerObject = {};
-            {% for key, value in headers %}
-            headerObject['{{ key }}'] = '{{ value }}';
-            {% endfor %}
-            options.headers = headerObject;
-            {% endif %}
-            {% if ignoreHiddenFiles is defined %}
-            options.ignoreHiddenFiles = {{ ignoreHiddenFiles ? 'true' : 'false' }};
-            {% endif %}
-            {% if acceptedFiles is defined and acceptedFiles %}
-            options.acceptedFiles = '{{ acceptedFiles }}';
-            {% endif %}
-            {% if autoProcessQueue is defined %}
-            options.autoProcessQueue = {{ autoProcessQueue ? 'true' : 'false' }};
-            {% endif %}
-            {% if autoQueue is defined %}
-            options.autoQueue = {{ autoQueue ? 'true' : 'false' }};
-            {% endif %}
-            {% if addRemoveLinks is defined %}
-            options.addRemoveLinks = {{ addRemoveLinks ? 'true' : 'false' }};
-            {% endif %}
-            {% if previewsContainer is defined and previewsContainer %}
-            options.previewsContainer = '{{ previewsContainer }}';
-            {% endif %}
 
-            new Dropzone(dropzoneElement, {
-                url: '{{ path(uploadHandler) }}',
-                ...options,
-                init: function () {
-                    var dz = this;
-                    {% if files is defined and files %}
-                    {% for file in files %}
-                    (function () {
-                        var src = '{{ attribute(file, choice_src) }}';
-                        var mockFile = {
-                            id: '{{ file.id }}',
-                            name: '{{ file.filename }}',
-                            status: Dropzone.ADDED,
-                            url: src
-                        };
-                        {% if file.size is defined %}
-                        mockFile.size = {{ file.size }};
-                        {% endif %}
-                        {% if file.mimetype is defined %}
-                        mockFile.type = '{{ file.mimetype }}';
-                        {% endif %}
-                        dz.emit('addedfile', mockFile);
-                        dz.emit('thumbnail', mockFile, src);
-                        dz.emit('complete', mockFile);
-                        dz.files.push(mockFile);
-                        initPrototype('{{ file.id }}');
-                    })();
-                    {% endfor %}
-                    {% endif %}
+            Object.keys(config.options).forEach(function (key) {
+                options[key] = config.options[key];
+            });
 
-                    this.on('success', function (file, result) {
-                        if (result && result.id) {
-                            file.id = result.id;
-                            initPrototype(result.id);
-                        }
-                    });
-                },
-                sending: function (file, xhr, formData) {
-                    {% if formData is defined and formData is iterable %}
-                    {% for key, value in formData %}
-                    formData.append('{{ key }}', '{{ value }}');
-                    {% endfor %}
-                    {% endif %}
-                },
-                removedfile: function (file) {
-                    if (file.id) {
-                        removePrototype(file.id);
-                        {% if removeHandler is defined and removeHandler %}
-                        var uri = '{{ path(removeHandler, {"id": "file_id"}) }}';
-                        var removeOptions = {};
-                        {% if removeHandlerMethod is defined and removeHandlerMethod %}
-                        removeOptions.method = '{{ removeHandlerMethod }}';
-                        {% endif %}
-                        if (options.headers) {
-                            removeOptions.headers = options.headers;
-                        }
-                        fetch(uri.replace('file_id', file.id), removeOptions);
-                        {% endif %}
+            options.url = config.uploadUrl;
+
+            options.init = function () {
+                var dz = this;
+
+                config.files.forEach(function (file) {
+                    var mockFile = {
+                        id: file.id,
+                        name: file.name,
+                        status: Dropzone.ADDED,
+                        url: file.url
+                    };
+
+                    if (typeof file.size !== 'undefined') mockFile.size = file.size;
+                    if (typeof file.type !== 'undefined') mockFile.type = file.type;
+
+                    dz.emit('addedfile', mockFile);
+                    dz.emit('thumbnail', mockFile, file.url);
+                    dz.emit('complete', mockFile);
+                    dz.files.push(mockFile);
+                    initPrototype(file.id);
+                });
+
+                dz.on('success', function (file, result) {
+                    if (result && result.id) {
+                        file.id = result.id;
+                        initPrototype(result.id);
                     }
-                    if (file.previewElement) {
-                        file.previewElement.remove();
+                });
+
+                emit('init', { dropzone: dz, config: config });
+            };
+
+            options.sending = function (file, xhr, formData) {
+                Object.keys(config.formData).forEach(function (key) {
+                    formData.append(key, config.formData[key]);
+                });
+
+                emit('sending', { dropzone: this, file: file, xhr: xhr, formData: formData });
+            };
+
+            options.removedfile = function (file) {
+                if (file.id) {
+                    removePrototype(file.id);
+
+                    if (config.removeUrl) {
+                        var removeOptions = { method: config.removeMethod };
+
+                        if (config.options.headers) {
+                            removeOptions.headers = config.options.headers;
+                        }
+
+                        fetch(config.removeUrl.replace('__DROPZONE_FILE_ID__', encodeURIComponent(file.id)), removeOptions);
                     }
                 }
-            });
+
+                if (file.previewElement) {
+                    file.previewElement.remove();
+                }
+
+                emit('removedfile', { file: file });
+            };
+
+            new Dropzone(dropzoneElement, options);
         })();
     </script>
 {% endblock %}

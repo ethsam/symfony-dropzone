@@ -65,6 +65,7 @@ class DropzoneType extends AbstractType
             'choice_src' => 'src',
             'multiple' => true,
             'maxFiles' => 1,
+            'maxFilesize' => null,
             'uploadHandlerMethod' => 'POST',
             'removeHandlerMethod' => 'DELETE',
             'withCredentials' => 0,
@@ -85,6 +86,36 @@ class DropzoneType extends AbstractType
             'addRemoveLinks' => true,
             'previewsContainer' => null,
         ]);
+
+        // Every option below ends up in the JSON payload the browser reads, so each
+        // one is pinned to a type. An unexpected type is refused at build time
+        // rather than silently serialised into the page.
+        $resolver->setAllowedTypes('class', 'string');
+        $resolver->setAllowedTypes('uploadHandler', 'string');
+        $resolver->setAllowedTypes('removeHandler', 'string');
+        $resolver->setAllowedTypes('choice_src', 'string');
+        $resolver->setAllowedTypes('multiple', 'bool');
+        $resolver->setAllowedTypes('maxFiles', ['null', 'int']);
+        $resolver->setAllowedTypes('maxFilesize', ['null', 'int', 'float']);
+        $resolver->setAllowedTypes('uploadHandlerMethod', 'string');
+        $resolver->setAllowedTypes('removeHandlerMethod', 'string');
+        $resolver->setAllowedTypes('withCredentials', ['bool', 'int']);
+        $resolver->setAllowedTypes('thumbnailWidth', ['null', 'int']);
+        $resolver->setAllowedTypes('thumbnailHeight', ['null', 'int']);
+        $resolver->setAllowedTypes('thumbnailMethod', 'string');
+        $resolver->setAllowedTypes('resizeWidth', ['null', 'int']);
+        $resolver->setAllowedTypes('resizeHeight', ['null', 'int']);
+        $resolver->setAllowedTypes('resizeMimeType', ['null', 'string']);
+        $resolver->setAllowedTypes('resizeMethod', 'string');
+        $resolver->setAllowedTypes('filesizeBase', 'int');
+        $resolver->setAllowedTypes('headers', 'string[]');
+        $resolver->setAllowedTypes('formData', 'scalar[]');
+        $resolver->setAllowedTypes('ignoreHiddenFiles', 'bool');
+        $resolver->setAllowedTypes('acceptedFiles', ['null', 'string']);
+        $resolver->setAllowedTypes('autoProcessQueue', 'bool');
+        $resolver->setAllowedTypes('autoQueue', 'bool');
+        $resolver->setAllowedTypes('addRemoveLinks', 'bool');
+        $resolver->setAllowedTypes('previewsContainer', ['null', 'string']);
 
         parent::configureOptions($resolver);
     }
@@ -132,8 +163,53 @@ class DropzoneType extends AbstractType
         $view->vars['autoQueue'] = $options['autoQueue'];
         $view->vars['addRemoveLinks'] = $options['addRemoveLinks'];
         $view->vars['previewsContainer'] = $options['previewsContainer'];
+        $view->vars['maxFilesize'] = $options['maxFilesize'];
+        $view->vars['dropzoneOptions'] = $this->buildDropzoneOptions($options);
+        // Cast so an empty map serialises as {} rather than [], which keeps the
+        // browser side free of array/object special cases.
+        $view->vars['dropzoneFormData'] = (object) $options['formData'];
 
         parent::buildView($view, $form, $options);
+    }
+
+    /**
+     * Builds the option object handed to Dropzone.js.
+     *
+     * Options left at a falsy value are dropped so Dropzone keeps applying its
+     * own defaults, which is the behaviour the widget has always had.
+     *
+     * @param array<string, mixed> $options
+     *
+     * @return array<string, mixed>
+     */
+    private function buildDropzoneOptions(array $options): array
+    {
+        $optional = [
+            'maxFiles' => $options['maxFiles'],
+            'maxFilesize' => $options['maxFilesize'],
+            'method' => $options['uploadHandlerMethod'],
+            'withCredentials' => $options['withCredentials'],
+            'thumbnailWidth' => $options['thumbnailWidth'],
+            'thumbnailHeight' => $options['thumbnailHeight'],
+            'thumbnailMethod' => $options['thumbnailMethod'],
+            'resizeWidth' => $options['resizeWidth'],
+            'resizeHeight' => $options['resizeHeight'],
+            'resizeMimeType' => $options['resizeMimeType'],
+            'resizeMethod' => $options['resizeMethod'],
+            'filesizeBase' => $options['filesizeBase'],
+            'acceptedFiles' => $options['acceptedFiles'],
+            'previewsContainer' => $options['previewsContainer'],
+        ];
+
+        $dropzoneOptions = array_filter($optional, static fn (mixed $value): bool => (bool) $value);
+
+        $dropzoneOptions['headers'] = (object) $options['headers'];
+        $dropzoneOptions['ignoreHiddenFiles'] = $options['ignoreHiddenFiles'];
+        $dropzoneOptions['autoProcessQueue'] = $options['autoProcessQueue'];
+        $dropzoneOptions['autoQueue'] = $options['autoQueue'];
+        $dropzoneOptions['addRemoveLinks'] = $options['addRemoveLinks'];
+
+        return $dropzoneOptions;
     }
 
     private function dashesToCamelCase(string $string, bool $capitalizeFirstCharacter = false): string
