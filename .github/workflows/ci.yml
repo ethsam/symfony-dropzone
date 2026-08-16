@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only by default. A pull request from a fork must never be able to write
+# to this repository, and third-party actions are pinned to a commit SHA so a
+# retagged release cannot change what runs here.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: PHP ${{ matrix.php }} / Symfony ${{ matrix.symfony }} ${{ matrix.dependencies }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.1'
+            symfony: '5.4.*'
+            dependencies: 'lowest'
+          - php: '8.1'
+            symfony: '5.4.*'
+          - php: '8.2'
+            symfony: '6.4.*'
+          - php: '8.3'
+            symfony: '7.*'
+          - php: '8.4'
+            symfony: '7.*'
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Pin the Symfony version under test
+        run: |
+          composer require --no-update --dev symfony/flex
+          composer config --no-plugins allow-plugins.symfony/flex true
+          composer config extra.symfony.require "${{ matrix.symfony }}"
+
+      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
+        with:
+          dependency-versions: ${{ matrix.dependencies || 'highest' }}
+
+      # Fail on deprecations coming from this bundle, tolerate the ones its
+      # dependencies trigger between themselves, which we cannot act on.
+      - run: vendor/bin/phpunit
+        env:
+          SYMFONY_DEPRECATIONS_HELPER: max[self]=0
+
+  security:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
+
+      - run: composer audit --no-interaction

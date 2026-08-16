@@ -29,6 +29,7 @@
     ],
     "support": {
         "issues": "https://github.com/ethsam/symfony-dropzone/issues",
+        "security": "https://github.com/ethsam/symfony-dropzone/security/policy",
         "source": "https://github.com/ethsam/symfony-dropzone"
     },
     "require": {
@@ -50,7 +51,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "2.0-dev"
+            "dev-main": "2.1-dev"
         }
     },
     "minimum-stability": "stable"

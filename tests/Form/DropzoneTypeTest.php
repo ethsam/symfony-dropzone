@@ -6,8 +6,10 @@ namespace Ethsam\SymfonyDropzone\Tests\Form;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Ethsam\SymfonyDropzone\Form\DropzoneType;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\OptionsResolver\Exception\InvalidOptionsException;
 use Symfony\Component\OptionsResolver\Exception\MissingOptionsException;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
@@ -70,6 +72,54 @@ class DropzoneTypeTest extends TestCase
         $this->assertTrue($options['autoQueue']);
         $this->assertTrue($options['addRemoveLinks']);
         $this->assertNull($options['previewsContainer']);
+        $this->assertNull($options['maxFilesize']);
+    }
+
+    /**
+     * @return iterable<string, array{string, mixed}>
+     */
+    public static function badlyTypedOptionProvider(): iterable
+    {
+        yield 'maxFiles as a string' => ['maxFiles', '5'];
+        yield 'maxFilesize as a string' => ['maxFilesize', '50'];
+        yield 'acceptedFiles as an array' => ['acceptedFiles', ['image/*']];
+        yield 'headers holding an object' => ['headers', ['X-Token' => new \stdClass()]];
+        yield 'formData holding an array' => ['formData', ['meta' => ['nested']]];
+        yield 'addRemoveLinks as an int' => ['addRemoveLinks', 1];
+        yield 'previewsContainer as a bool' => ['previewsContainer', true];
+    }
+
+    #[Test]
+    #[DataProvider('badlyTypedOptionProvider')]
+    public function optionsAreTypeCheckedBeforeReachingThePage(string $option, mixed $value): void
+    {
+        $resolver = new OptionsResolver();
+        $this->type->configureOptions($resolver);
+
+        $this->expectException(InvalidOptionsException::class);
+
+        $resolver->resolve([
+            'class' => 'App\Entity\Attachment',
+            'uploadHandler' => 'app_upload',
+            'removeHandler' => 'app_remove',
+            $option => $value,
+        ]);
+    }
+
+    #[Test]
+    public function maxFilesizeAcceptsIntegersAndFloats(): void
+    {
+        $resolver = new OptionsResolver();
+        $this->type->configureOptions($resolver);
+
+        $base = [
+            'class' => 'App\Entity\Attachment',
+            'uploadHandler' => 'app_upload',
+            'removeHandler' => 'app_remove',
+        ];
+
+        $this->assertSame(50, $resolver->resolve($base + ['maxFilesize' => 50])['maxFilesize']);
+        $this->assertSame(0.5, $resolver->resolve($base + ['maxFilesize' => 0.5])['maxFilesize']);
     }
 
     #[Test]

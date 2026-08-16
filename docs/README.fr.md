@@ -10,16 +10,16 @@
 
 ## Fonctionnalités
 
-- **Téléchargement glisser-déposer** — Alimenté par Dropzone.js
-- **Support des relations d'entités** — Gestion automatique des associations OneToMany et ManyToOne
-- **Transformation de données intégrée** — Conversion des IDs en entités via Doctrine ORM
-- **Formulaires de modification pré-remplis** — Affiche les fichiers existants en mode édition
-- **Entièrement configurable** — Les options de Dropzone.js sont exposées dans le générateur de formulaire
-- **Fichiers uniques ou multiples** — Contrôlez le mode de téléchargement par champ de formulaire
-- **Gestionnaires personnalisés** — Points de terminaison basés sur des routes avec réponses JSON
-- **Redimensionnement d'images** — Traitement côté client avant le téléchargement
-- **Authentification flexible** — En-têtes personnalisés pour l'intégration API
-- **Compatible Symfony Flex** — Enregistrement de bundle automatique
+- **Téléchargement glisser-déposer**: Alimenté par Dropzone.js
+- **Support des relations d'entités**: Gestion automatique des associations OneToMany et ManyToOne
+- **Transformation de données intégrée**: Conversion des IDs en entités via Doctrine ORM
+- **Formulaires de modification pré-remplis**: Affiche les fichiers existants en mode édition
+- **Entièrement configurable**: Les options de Dropzone.js sont exposées dans le générateur de formulaire
+- **Fichiers uniques ou multiples**: Contrôlez le mode de téléchargement par champ de formulaire
+- **Gestionnaires personnalisés**: Points de terminaison basés sur des routes avec réponses JSON
+- **Redimensionnement d'images**: Traitement côté client avant le téléchargement
+- **Authentification flexible**: En-têtes personnalisés pour l'intégration API
+- **Compatible Symfony Flex**: Enregistrement de bundle automatique
 
 ## Prérequis
 
@@ -207,9 +207,14 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class FileController extends AbstractController
 {
+    // Ces deux routes sont appelées par le widget, il ne les protège pas.
+    // Ajoutez votre propre contrôle d'accès et validez l'envoi côté serveur :
+    // les options acceptedFiles et maxFilesize ne filtrent que dans le navigateur.
+    #[IsGranted('ROLE_USER')]
     #[Route('/upload', name: 'app_upload_file', methods: ['POST'])]
     public function upload(Request $request, EntityManagerInterface $em): JsonResponse
     {
@@ -219,7 +224,9 @@ class FileController extends AbstractController
             return new JsonResponse(['error' => 'Aucun fichier fourni'], 400);
         }
 
-        // Déplacez le fichier vers votre répertoire de téléchargements
+        // Ne construisez jamais le nom stocké à partir de celui du client et ne
+        // faites jamais confiance au type MIME annoncé. guessExtension() lit le
+        // contenu réel du fichier.
         $filename = uniqid() . '.' . $uploadedFile->guessExtension();
         $uploadedFile->move(
             $this->getParameter('kernel.project_dir') . '/public/uploads',
@@ -237,6 +244,10 @@ class FileController extends AbstractController
         return new JsonResponse(['id' => $attachment->getId()]);
     }
 
+    // L'identifiant vient directement de la page : vérifiez que cet utilisateur
+    // a le droit de supprimer ce fichier précis. Sans ce contrôle, n'importe quel
+    // visiteur authentifié supprime les fichiers des autres en changeant l'id.
+    #[IsGranted('DELETE', subject: 'attachment')]
     #[Route('/remove/{id}', name: 'app_remove_file', methods: ['DELETE'])]
     public function remove(Attachment $attachment, EntityManagerInterface $em): JsonResponse
     {
@@ -283,6 +294,7 @@ C'est tout ! Le bundle gère tout :
 | `class` | string | null | **Obligatoire.** Classe d'entité pour les objets de fichier/pièce jointe |
 | `multiple` | bool | true | Activer le mode fichier multiple ; définissez `false` pour un seul fichier (ManyToOne) |
 | `maxFiles` | int | 1 | Nombre maximum de fichiers autorisés dans la dropzone |
+| `maxFilesize` | int\|float\|null | null | Taille maximale d'un fichier en Mio, refusée dans le navigateur avant l'envoi. `null` conserve la valeur par défaut de Dropzone. C'est un confort pour l'utilisateur, pas un contrôle de sécurité : appliquez toujours la limite à nouveau dans votre gestionnaire de téléchargement |
 | `uploadHandler` | string | null | **Obligatoire.** Nom de la route Symfony pour le point de terminaison de téléchargement |
 | `removeHandler` | string | null | **Obligatoire.** Nom de la route Symfony pour le point de terminaison de suppression |
 | `uploadHandlerMethod` | string | "POST" | Méthode HTTP pour les demandes de téléchargement |
@@ -307,13 +319,64 @@ C'est tout ! Le bundle gère tout :
 | `previewsContainer` | string | null | Sélecteur CSS pour un conteneur d'aperçu personnalisé (par ex., `"#my-previews"`) |
 | `required` | bool | true | Le champ est obligatoire pour la validation du formulaire |
 
+Chaque option est vérifiée en type à la construction du formulaire. Passer une
+valeur du mauvais type lève une `InvalidOptionsException` au lieu d'être écrite
+dans la page.
+
+## Événements JavaScript
+
+Le widget émet des événements DOM sur l'élément dropzone, ce qui permet d'étendre
+son comportement sans surcharger le gabarit ni injecter du JavaScript depuis PHP.
+Les événements remontent, écouter sur `document` suffit donc.
+
+| Événement | Émis quand | `event.detail` |
+|-----------|-----------|----------------|
+| `symfony-dropzone:init` | L'instance Dropzone est prête | `{ dropzone, config }` |
+| `symfony-dropzone:sending` | Juste avant l'envoi d'un fichier | `{ dropzone, file, xhr, formData }` |
+| `symfony-dropzone:removedfile` | Après la suppression d'un fichier | `{ file }` |
+
+Le préfixe `symfony-dropzone:` n'est pas un caprice. Dropzone.js 6 émet ses
+propres événements DOM nommés `dropzone:sending`, `dropzone:success` et ainsi de
+suite, avec un `detail` de la forme `{args: [...]}`. Ils restent disponibles et
+inchangés ; ceux ci-dessus sont ceux du bundle, avec un detail nommé, et ils
+fonctionnent à l'identique sur Dropzone 5 qui n'a aucun événement DOM.
+
+Ajouter à chaque envoi une valeur calculée dans le navigateur :
+
+```html
+<script>
+    var uuid = crypto.randomUUID();
+
+    document.addEventListener('symfony-dropzone:sending', function (event) {
+        event.detail.formData.append('uuid', uuid);
+    });
+</script>
+```
+
+Atteindre l'instance Dropzone elle-même, pour tout ce que les options ne couvrent
+pas :
+
+```html
+<script>
+    document.addEventListener('symfony-dropzone:init', function (event) {
+        event.detail.dropzone.on('error', function (file, message) {
+            console.warn('échec du téléchargement', file.name, message);
+        });
+    });
+</script>
+```
+
+L'écouteur de `symfony-dropzone:init` doit être enregistré avant le rendu du widget,
+typiquement dans le head de la page ou dans un script chargé en `defer`. Les
+autres événements se déclenchent à l'usage et peuvent être attachés à tout moment.
+
 ## Exigences des entités de fichier
 
 Votre entité de fichier/pièce jointe doit implémenter :
 
-- **`getId(): ?int`** — Retourne l'identifiant unique
-- **`getFilename(): string`** — Retourne le nom du fichier pour l'affichage
-- **Getter pour la propriété `choice_src`** — Par défaut `getSrc(): string`, retourne l'URL/le chemin du fichier pour l'affichage des miniatures
+- **`getId(): ?int`**: Retourne l'identifiant unique
+- **`getFilename(): string`**: Retourne le nom du fichier pour l'affichage
+- **Getter pour la propriété `choice_src`**: Par défaut `getSrc(): string`, retourne l'URL/le chemin du fichier pour l'affichage des miniatures
 
 Exemple d'entité minimale :
 
@@ -344,17 +407,17 @@ class Attachment
 
 ### Aperçu de l'architecture
 
-1. **Enregistrement du type de formulaire** — `DropzoneType` étend le système de formulaires Symfony
-2. **Champs masqués** — Pour plusieurs fichiers : un `CollectionType` avec des entrées masquées ; pour un seul : un champ `EntityType`
-3. **Modèle Twig** — Rend le widget Dropzone.js avec la configuration JavaScript
+1. **Enregistrement du type de formulaire**: `DropzoneType` étend le système de formulaires Symfony
+2. **Champs masqués**: Pour plusieurs fichiers : un `CollectionType` avec des entrées masquées ; pour un seul : un champ `EntityType`
+3. **Modèle Twig**: Rend le widget Dropzone.js avec la configuration JavaScript
 4. **Flux de téléchargement** :
    - L'utilisateur fait glisser des fichiers ou clique pour sélectionner
    - Dropzone.js envoie chaque fichier à votre route `uploadHandler` via AJAX
    - Le gestionnaire persiste l'entité à la base de données, renvoie `{"id": <int>}`
    - Le bundle stocke l'ID du fichier dans un champ de formulaire masqué
-5. **Soumission de formulaire** — Les valeurs des champs masqués sont collectées
-6. **Transformation des données** — `DropzoneTransformer` convertit les IDs en objets d'entité via Doctrine
-7. **Persistance** — La soumission du formulaire gère automatiquement les relations OneToMany/ManyToOne
+5. **Soumission de formulaire**: Les valeurs des champs masqués sont collectées
+6. **Transformation des données**: `DropzoneTransformer` convertit les IDs en objets d'entité via Doctrine
+7. **Persistance**: La soumission du formulaire gère automatiquement les relations OneToMany/ManyToOne
 
 ### Flux de suppression de fichier
 
@@ -373,6 +436,7 @@ $builder->add('attachments', DropzoneType::class, [
     'class' => Attachment::class,
     'multiple' => true,
     'maxFiles' => 10,
+    'maxFilesize' => 50, // Mio, refusé dans le navigateur avant l'envoi
     'uploadHandler' => 'app_upload_file',
     'removeHandler' => 'app_remove_file',
 ]);
@@ -473,16 +537,61 @@ public function upload(Request $request, EntityManagerInterface $em): JsonRespon
 }
 ```
 
+## Sécurité
+
+### Comment le widget est rendu
+
+Le widget ne construit jamais de JavaScript à partir de vos données. Tout ce dont
+le navigateur a besoin, y compris les noms de fichiers stockés, est sérialisé en
+JSON dans un attribut HTML puis relu avec `JSON.parse`. Le bloc `<script>` en
+ligne est un bloc de code constant : il est identique octet pour octet quel que
+soit le contenu de votre base.
+
+C'est important parce que les noms de fichiers sont fournis par la personne qui
+téléverse. Les versions jusqu'à 2.0.0 incluse les interpolaient directement dans
+le script, où l'échappement HTML de Twig ne protège pas un contexte de chaîne
+JavaScript. Voir [SECURITY.md](../SECURITY.md) pour le détail et pour signaler un
+problème.
+
+Si vous conservez une copie de `dropzone.html.twig` dans votre
+`templates/bundles/SymfonyDropzoneBundle/`, c'est cette copie que Symfony rend et
+elle conserve l'ancien comportement. Supprimez-la ou reportez-y vos changements.
+
+### Ce qui reste à votre charge
+
+- `maxFilesize` et `acceptedFiles` ne sont vérifiés que dans le navigateur.
+  Appliquez les vraies limites dans votre gestionnaire de téléchargement.
+- Vos routes d'envoi et de suppression ont besoin de leur propre contrôle
+  d'accès. Le bundle les appelle, il ne les protège pas.
+- Le point de suppression reçoit un identifiant venu directement de la page.
+  Vérifiez que l'utilisateur courant a le droit de supprimer ce fichier précis.
+- Les valeurs passées par `formData` et `headers` partent vers votre propre route
+  d'envoi : n'y mettez rien que vous ne mettriez pas dans un champ de formulaire.
+
+## Mise à jour depuis la 2.0
+
+Aucune option n'a été renommée ni supprimée, et aucun code applicatif n'a besoin
+de changer.
+
+- Le balisage généré comporte désormais un `<span hidden data-dropzone-config="...">`
+  à côté du widget. Si du CSS ou du JavaScript sélectionne par position de frère
+  autour de la dropzone, vérifiez-le.
+- Les options sont maintenant vérifiées en type. Une valeur auparavant convertie
+  silencieusement, `'5'` au lieu de `5` pour `maxFiles` par exemple, lève
+  désormais une exception à la construction du formulaire.
+- Les comportements personnalisés qui reposaient sur une modification du script
+  généré doivent passer par les événements décrits plus haut.
+
 ## Mise à jour à partir de la v1
 
 Si vous mettez à jour à partir de l'original `emr-dev/symfony-dropzone` :
 
-- **L'espace de noms du bundle a changé** — `Ethsam\SymfonyDropzone` (était `EmrDev\SymfonyDropzoneBundle`)
-- **Importation du type de formulaire** — Mettez à jour : `use Ethsam\SymfonyDropzone\Form\DropzoneType;`
-- **Noms des options** — Aucune modification ; toutes les options sont rétrocompatibles
-- **Exigences PHP** — Nécessite maintenant PHP ≥8.1
-- **Support Symfony** — Supporte maintenant Symfony 5.4, 6.x, 7.x
-- **Transformateur de données** — Automatique ; aucune conversion d'entité manuelle nécessaire
+- **L'espace de noms du bundle a changé**: `Ethsam\SymfonyDropzone` (était `EmrDev\SymfonyDropzoneBundle`)
+- **Importation du type de formulaire**: Mettez à jour : `use Ethsam\SymfonyDropzone\Form\DropzoneType;`
+- **Noms des options**: Aucune modification ; toutes les options sont rétrocompatibles
+- **Exigences PHP**: Nécessite maintenant PHP ≥8.1
+- **Support Symfony**: Supporte maintenant Symfony 5.4, 6.x, 7.x
+- **Transformateur de données**: Automatique ; aucune conversion d'entité manuelle nécessaire
 
 Exemple de migration :
 
@@ -532,6 +641,6 @@ Forké à l'origine de [emr-dev/symfony-dropzone](https://github.com/emr-dev/sym
 
 ## Crédits
 
-- **Samuel Etheve** — Responsable actuel
-- **Emomaliev M.** — Auteur original ([emr-dev/symfony-dropzone](https://github.com/emr-dev/symfony-dropzone))
-- **[Dropzone.js](https://www.dropzonejs.com/)** — Bibliothèque de téléchargement de fichiers
+- **Samuel Etheve**: Responsable actuel
+- **Emomaliev M.**: Auteur original ([emr-dev/symfony-dropzone](https://github.com/emr-dev/symfony-dropzone))
+- **[Dropzone.js](https://www.dropzonejs.com/)**: Bibliothèque de téléchargement de fichiers
