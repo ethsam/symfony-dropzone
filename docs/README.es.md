@@ -331,9 +331,15 @@ Los eventos se propagan, así que basta con escuchar en `document`.
 
 | Evento | Se emite cuando | `event.detail` |
 |--------|-----------------|----------------|
-| `dropzone:init` | La instancia de Dropzone está lista | `{ dropzone, config }` |
-| `dropzone:sending` | Justo antes de enviar un archivo | `{ dropzone, file, xhr, formData }` |
-| `dropzone:removedfile` | Tras eliminar un archivo | `{ file }` |
+| `symfony-dropzone:init` | La instancia de Dropzone está lista | `{ dropzone, config }` |
+| `symfony-dropzone:sending` | Justo antes de enviar un archivo | `{ dropzone, file, xhr, formData }` |
+| `symfony-dropzone:removedfile` | Tras eliminar un archivo | `{ file }` |
+
+El prefijo `symfony-dropzone:` no es arbitrario. Dropzone.js 6 emite sus propios
+eventos DOM llamados `dropzone:sending`, `dropzone:success` y demás, con un
+`detail` de la forma `{args: [...]}`. Siguen disponibles y sin cambios; los de
+arriba son los del bundle, con un detail con nombres, y funcionan igual en
+Dropzone 5, que no tiene ningún evento DOM.
 
 Añadir a cada carga un valor calculado en el navegador:
 
@@ -341,7 +347,7 @@ Añadir a cada carga un valor calculado en el navegador:
 <script>
     var uuid = crypto.randomUUID();
 
-    document.addEventListener('dropzone:sending', function (event) {
+    document.addEventListener('symfony-dropzone:sending', function (event) {
         event.detail.formData.append('uuid', uuid);
     });
 </script>
@@ -352,7 +358,7 @@ cubren:
 
 ```html
 <script>
-    document.addEventListener('dropzone:init', function (event) {
+    document.addEventListener('symfony-dropzone:init', function (event) {
         event.detail.dropzone.on('error', function (file, message) {
             console.warn('carga fallida', file.name, message);
         });
@@ -360,7 +366,7 @@ cubren:
 </script>
 ```
 
-El escuchador de `dropzone:init` debe registrarse antes de que se renderice el
+El escuchador de `symfony-dropzone:init` debe registrarse antes de que se renderice el
 widget, normalmente en el head de la página o en un script cargado con `defer`.
 Los demás eventos se disparan con el uso y pueden asociarse en cualquier momento.
 

@@ -137,6 +137,19 @@ final class DropzoneWidgetRenderTest extends TestCase
         $this->assertSame(50, $config['options']['maxFilesize']);
     }
 
+    /**
+     * Dropzone.js 6 dispatches its own DOM events under the `dropzone:` prefix,
+     * with a different detail shape. Sharing the prefix would deliver two
+     * incompatible events under one name to any listener.
+     */
+    public function testWidgetEventsDoNotCollideWithDropzoneOwnDomEvents(): void
+    {
+        $script = $this->extractInlineScript($this->renderWidget([]));
+
+        $this->assertStringContainsString("'symfony-dropzone:' + name", $script);
+        $this->assertStringNotContainsString("'dropzone:' + name", $script);
+    }
+
     public function testRemoveUrlCarriesAnUnambiguousPlaceholder(): void
     {
         $config = $this->extractConfig($this->renderWidget([]));

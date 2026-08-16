@@ -331,9 +331,15 @@ Les événements remontent, écouter sur `document` suffit donc.
 
 | Événement | Émis quand | `event.detail` |
 |-----------|-----------|----------------|
-| `dropzone:init` | L'instance Dropzone est prête | `{ dropzone, config }` |
-| `dropzone:sending` | Juste avant l'envoi d'un fichier | `{ dropzone, file, xhr, formData }` |
-| `dropzone:removedfile` | Après la suppression d'un fichier | `{ file }` |
+| `symfony-dropzone:init` | L'instance Dropzone est prête | `{ dropzone, config }` |
+| `symfony-dropzone:sending` | Juste avant l'envoi d'un fichier | `{ dropzone, file, xhr, formData }` |
+| `symfony-dropzone:removedfile` | Après la suppression d'un fichier | `{ file }` |
+
+Le préfixe `symfony-dropzone:` n'est pas un caprice. Dropzone.js 6 émet ses
+propres événements DOM nommés `dropzone:sending`, `dropzone:success` et ainsi de
+suite, avec un `detail` de la forme `{args: [...]}`. Ils restent disponibles et
+inchangés ; ceux ci-dessus sont ceux du bundle, avec un detail nommé, et ils
+fonctionnent à l'identique sur Dropzone 5 qui n'a aucun événement DOM.
 
 Ajouter à chaque envoi une valeur calculée dans le navigateur :
 
@@ -341,7 +347,7 @@ Ajouter à chaque envoi une valeur calculée dans le navigateur :
 <script>
     var uuid = crypto.randomUUID();
 
-    document.addEventListener('dropzone:sending', function (event) {
+    document.addEventListener('symfony-dropzone:sending', function (event) {
         event.detail.formData.append('uuid', uuid);
     });
 </script>
@@ -352,7 +358,7 @@ pas :
 
 ```html
 <script>
-    document.addEventListener('dropzone:init', function (event) {
+    document.addEventListener('symfony-dropzone:init', function (event) {
         event.detail.dropzone.on('error', function (file, message) {
             console.warn('échec du téléchargement', file.name, message);
         });
@@ -360,7 +366,7 @@ pas :
 </script>
 ```
 
-L'écouteur de `dropzone:init` doit être enregistré avant le rendu du widget,
+L'écouteur de `symfony-dropzone:init` doit être enregistré avant le rendu du widget,
 typiquement dans le head de la page ou dans un script chargé en `defer`. Les
 autres événements se déclenchent à l'usage et peuvent être attachés à tout moment.
 

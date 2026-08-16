@@ -25,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `maxFilesize` option, mapping to Dropzone.js `maxFilesize` in MiB. Thanks to
   [@nicodemuz](https://github.com/nicodemuz) for the proposal in #3.
-- `dropzone:init`, `dropzone:sending` and `dropzone:removedfile` DOM events, so
+- `symfony-dropzone:init`, `symfony-dropzone:sending` and
+  `symfony-dropzone:removedfile` DOM events, so
   applications can extend the widget without overriding the template. This
   covers the use case behind #2, appending a value computed in the browser to
   the upload, without injecting JavaScript from PHP.

@@ -329,9 +329,15 @@ Events bubble, so listening on `document` is enough.
 
 | Event | Fired when | `event.detail` |
 |-------|-----------|----------------|
-| `dropzone:init` | The Dropzone instance is ready | `{ dropzone, config }` |
-| `dropzone:sending` | Just before a file is uploaded | `{ dropzone, file, xhr, formData }` |
-| `dropzone:removedfile` | After a file is removed | `{ file }` |
+| `symfony-dropzone:init` | The Dropzone instance is ready | `{ dropzone, config }` |
+| `symfony-dropzone:sending` | Just before a file is uploaded | `{ dropzone, file, xhr, formData }` |
+| `symfony-dropzone:removedfile` | After a file is removed | `{ file }` |
+
+The `symfony-dropzone:` prefix is not an accident. Dropzone.js 6 dispatches its
+own DOM events named `dropzone:sending`, `dropzone:success` and so on, with a
+`detail` of `{args: [...]}`. Those are still available and unaffected; the
+events above are the bundle's, with a named detail, and they work the same on
+Dropzone 5 which has no DOM events at all.
 
 Adding a value computed in the browser to every upload:
 
@@ -339,7 +345,7 @@ Adding a value computed in the browser to every upload:
 <script>
     var uuid = crypto.randomUUID();
 
-    document.addEventListener('dropzone:sending', function (event) {
+    document.addEventListener('symfony-dropzone:sending', function (event) {
         event.detail.formData.append('uuid', uuid);
     });
 </script>
@@ -349,7 +355,7 @@ Reaching the Dropzone instance itself, for anything the options do not cover:
 
 ```html
 <script>
-    document.addEventListener('dropzone:init', function (event) {
+    document.addEventListener('symfony-dropzone:init', function (event) {
         event.detail.dropzone.on('error', function (file, message) {
             console.warn('upload failed', file.name, message);
         });
@@ -357,7 +363,7 @@ Reaching the Dropzone instance itself, for anything the options do not cover:
 </script>
 ```
 
-The `dropzone:init` listener has to be registered before the widget renders,
+The `symfony-dropzone:init` listener has to be registered before the widget renders,
 typically in the page head or in a script loaded with `defer`. The other events
 fire on user interaction, so they can be bound at any time.
 

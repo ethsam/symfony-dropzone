@@ -103,8 +103,12 @@
                 }
             }
 
+            // The prefix is deliberately not "dropzone:". Dropzone.js 6 already
+            // dispatches DOM events under that exact name, carrying a different
+            // detail shape, so sharing it would hand listeners two incompatible
+            // events with the same name.
             function emit(name, detail) {
-                dropzoneElement.dispatchEvent(new CustomEvent('dropzone:' + name, {
+                dropzoneElement.dispatchEvent(new CustomEvent('symfony-dropzone:' + name, {
                     bubbles: true,
                     detail: detail
                 }));
