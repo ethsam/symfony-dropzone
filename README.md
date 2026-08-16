@@ -10,16 +10,16 @@
 
 ## Features
 
-- **Drag-and-drop file uploads** — Powered by Dropzone.js
-- **Entity relationship support** — Automatically manage OneToMany and ManyToOne associations
-- **Built-in data transformation** — IDs to entities via Doctrine ORM
-- **Pre-populated edit forms** — Show existing files in edit mode
-- **Fully configurable** — Dropzone.js options exposed in form builder
-- **Single or multiple files** — Control upload mode per form field
-- **Custom upload/remove handlers** — Route-based endpoints with JSON responses
-- **Image resizing** — Client-side image processing before upload
-- **Flexible authentication** — Custom headers for API integration
-- **Symfony Flex compatible** — Automatic bundle registration
+- **Drag-and-drop file uploads**: Powered by Dropzone.js
+- **Entity relationship support**: Automatically manage OneToMany and ManyToOne associations
+- **Built-in data transformation**: IDs to entities via Doctrine ORM
+- **Pre-populated edit forms**: Show existing files in edit mode
+- **Fully configurable**: Dropzone.js options exposed in form builder
+- **Single or multiple files**: Control upload mode per form field
+- **Custom upload/remove handlers**: Route-based endpoints with JSON responses
+- **Image resizing**: Client-side image processing before upload
+- **Flexible authentication**: Custom headers for API integration
+- **Symfony Flex compatible**: Automatic bundle registration
 
 ## Requirements
 
@@ -207,9 +207,14 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class FileController extends AbstractController
 {
+    // These two routes are called by the widget, they are not protected by it.
+    // Add your own access control, and validate the upload server side: the
+    // acceptedFiles and maxFilesize options only filter in the browser.
+    #[IsGranted('ROLE_USER')]
     #[Route('/upload', name: 'app_upload_file', methods: ['POST'])]
     public function upload(Request $request, EntityManagerInterface $em): JsonResponse
     {
@@ -219,7 +224,8 @@ class FileController extends AbstractController
             return new JsonResponse(['error' => 'No file provided'], 400);
         }
 
-        // Move the file to your uploads directory
+        // Never build the stored name from the client one, and never trust the
+        // client mime type. guessExtension() reads the actual file contents.
         $filename = uniqid() . '.' . $uploadedFile->guessExtension();
         $uploadedFile->move(
             $this->getParameter('kernel.project_dir') . '/public/uploads',
@@ -237,6 +243,10 @@ class FileController extends AbstractController
         return new JsonResponse(['id' => $attachment->getId()]);
     }
 
+    // The id comes straight from the page, so check that this user is allowed
+    // to delete this particular file. Without that check any authenticated
+    // visitor can delete anyone's files by changing the id.
+    #[IsGranted('DELETE', subject: 'attachment')]
     #[Route('/remove/{id}', name: 'app_remove_file', methods: ['DELETE'])]
     public function remove(Attachment $attachment, EntityManagerInterface $em): JsonResponse
     {
@@ -283,6 +293,7 @@ That's it! The bundle handles everything:
 | `class` | string | null | **Required.** Entity class for file/attachment objects |
 | `multiple` | bool | true | Enable multiple file mode; set `false` for single file (ManyToOne) |
 | `maxFiles` | int | 1 | Maximum number of files allowed in the dropzone |
+| `maxFilesize` | int\|float\|null | null | Maximum file size in MiB, rejected in the browser before upload. `null` keeps Dropzone's own default. This is a convenience for the user, not a security control: always enforce the limit again in your upload handler |
 | `uploadHandler` | string | null | **Required.** Symfony route name for file upload endpoint |
 | `removeHandler` | string | null | **Required.** Symfony route name for file removal endpoint |
 | `uploadHandlerMethod` | string | "POST" | HTTP method for upload requests |
@@ -307,13 +318,56 @@ That's it! The bundle handles everything:
 | `previewsContainer` | string | null | CSS selector for custom preview container (e.g., `"#my-previews"`) |
 | `required` | bool | true | Field is required for form validation |
 
+Every option is type checked when the form is built. Passing a value of the wrong
+type raises an `InvalidOptionsException` instead of being written into the page.
+
+## JavaScript Events
+
+The widget dispatches DOM events on the dropzone element, so you can extend the
+behaviour without overriding the template or injecting JavaScript from PHP.
+Events bubble, so listening on `document` is enough.
+
+| Event | Fired when | `event.detail` |
+|-------|-----------|----------------|
+| `dropzone:init` | The Dropzone instance is ready | `{ dropzone, config }` |
+| `dropzone:sending` | Just before a file is uploaded | `{ dropzone, file, xhr, formData }` |
+| `dropzone:removedfile` | After a file is removed | `{ file }` |
+
+Adding a value computed in the browser to every upload:
+
+```html
+<script>
+    var uuid = crypto.randomUUID();
+
+    document.addEventListener('dropzone:sending', function (event) {
+        event.detail.formData.append('uuid', uuid);
+    });
+</script>
+```
+
+Reaching the Dropzone instance itself, for anything the options do not cover:
+
+```html
+<script>
+    document.addEventListener('dropzone:init', function (event) {
+        event.detail.dropzone.on('error', function (file, message) {
+            console.warn('upload failed', file.name, message);
+        });
+    });
+</script>
+```
+
+The `dropzone:init` listener has to be registered before the widget renders,
+typically in the page head or in a script loaded with `defer`. The other events
+fire on user interaction, so they can be bound at any time.
+
 ## File Entity Requirements
 
 Your file/attachment entity must implement:
 
-- **`getId(): ?int`** — Returns the unique identifier
-- **`getFilename(): string`** — Returns the filename for display
-- **Getter for `choice_src` property** — By default `getSrc(): string`, returns the file URL/path for thumbnail display
+- **`getId(): ?int`**: Returns the unique identifier
+- **`getFilename(): string`**: Returns the filename for display
+- **Getter for `choice_src` property**: By default `getSrc(): string`, returns the file URL/path for thumbnail display
 
 Example minimal entity:
 
@@ -344,17 +398,17 @@ class Attachment
 
 ### Architecture Overview
 
-1. **Form Type Registration** — `DropzoneType` extends Symfony's form system
-2. **Hidden Fields** — For multiple files: a `CollectionType` with hidden inputs; for single: an `EntityType` field
-3. **Twig Template** — Renders Dropzone.js widget with JavaScript configuration
+1. **Form Type Registration**: `DropzoneType` extends Symfony's form system
+2. **Hidden Fields**: For multiple files: a `CollectionType` with hidden inputs; for single: an `EntityType` field
+3. **Twig Template**: Renders Dropzone.js widget with JavaScript configuration
 4. **Upload Flow**:
    - User drags files or clicks to select
    - Dropzone.js sends each file to your `uploadHandler` route via AJAX
    - Handler persists entity to database, returns `{"id": <int>}`
    - Bundle stores file ID in hidden form field
-5. **Form Submission** — Hidden field values are collected
-6. **Data Transformation** — `DropzoneTransformer` converts IDs back to entity objects via Doctrine
-7. **Persistence** — Form submission handles OneToMany/ManyToOne relationships automatically
+5. **Form Submission**: Hidden field values are collected
+6. **Data Transformation**: `DropzoneTransformer` converts IDs back to entity objects via Doctrine
+7. **Persistence**: Form submission handles OneToMany/ManyToOne relationships automatically
 
 ### File Removal Flow
 
@@ -373,6 +427,7 @@ $builder->add('attachments', DropzoneType::class, [
     'class' => Attachment::class,
     'multiple' => true,
     'maxFiles' => 10,
+    'maxFilesize' => 50, // MiB, rejected in the browser before upload
     'uploadHandler' => 'app_upload_file',
     'removeHandler' => 'app_remove_file',
 ]);
@@ -470,16 +525,57 @@ public function upload(Request $request, EntityManagerInterface $em): JsonRespon
 }
 ```
 
+## Security
+
+### How the widget renders
+
+The widget never builds JavaScript out of your data. Everything the browser
+needs, including stored filenames, is serialised to JSON inside an HTML
+attribute and read back with `JSON.parse`. The inline `<script>` is a constant
+block of code: it is byte for byte identical whatever your database contains.
+
+This matters because filenames are supplied by whoever uploads a file. Versions
+up to and including 2.0.0 interpolated them straight into the script, where
+Twig's HTML escaping does not protect a JavaScript string context. See
+[SECURITY.md](SECURITY.md) for the details and for how to report an issue.
+
+If you maintain a copy of `dropzone.html.twig` in your own
+`templates/bundles/SymfonyDropzoneBundle/`, that copy is what Symfony renders,
+and it is still on the old behaviour. Delete it or port your changes over.
+
+### What is still your responsibility
+
+- `maxFilesize` and `acceptedFiles` are checked in the browser only. Enforce the
+  real limits in your upload handler.
+- Your upload and remove routes need their own access control. The bundle calls
+  them, it does not protect them.
+- The remove endpoint receives an id straight from the page. Check that the
+  current user is allowed to delete that particular file.
+- Values you pass through `formData` and `headers` are sent to your own upload
+  route, so do not put anything there you would not put in a form field.
+
+## Upgrading from 2.0
+
+No option was renamed or removed, and no application code has to change.
+
+- The generated markup gained a `<span hidden data-dropzone-config="...">` next
+  to the widget. If you have CSS or JavaScript selecting on sibling position
+  around the dropzone, check it.
+- Options are now type checked. A value that used to be coerced, `'5'` instead
+  of `5` for `maxFiles` for instance, now raises an exception at form build time.
+- Custom behaviour that relied on editing the generated script should move to
+  the events described above.
+
 ## Upgrading from v1
 
 If you're upgrading from the original `emr-dev/symfony-dropzone`:
 
-- **Bundle namespace changed** — `Ethsam\SymfonyDropzone` (was `EmrDev\SymfonyDropzoneBundle`)
-- **Form type import** — Update: `use Ethsam\SymfonyDropzone\Form\DropzoneType;`
-- **Option names** — No changes; all options are backward compatible
-- **PHP requirement** — Now requires PHP ≥8.1
-- **Symfony support** — Now supports Symfony 5.4, 6.x, 7.x
-- **Data transformer** — Automatic; no manual entity conversion needed
+- **Bundle namespace changed**: `Ethsam\SymfonyDropzone` (was `EmrDev\SymfonyDropzoneBundle`)
+- **Form type import**: Update: `use Ethsam\SymfonyDropzone\Form\DropzoneType;`
+- **Option names**: No changes; all options are backward compatible
+- **PHP requirement**: Now requires PHP ≥8.1
+- **Symfony support**: Now supports Symfony 5.4, 6.x, 7.x
+- **Data transformer**: Automatic; no manual entity conversion needed
 
 Migration example:
 
@@ -529,6 +625,6 @@ Originally forked from [emr-dev/symfony-dropzone](https://github.com/emr-dev/sym
 
 ## Credits
 
-- **Samuel Etheve** — Current maintainer
-- **Emomaliev M.** — Original author ([emr-dev/symfony-dropzone](https://github.com/emr-dev/symfony-dropzone))
-- **[Dropzone.js](https://www.dropzonejs.com/)** — File upload library
+- **Samuel Etheve**: Current maintainer
+- **Emomaliev M.**: Original author ([emr-dev/symfony-dropzone](https://github.com/emr-dev/symfony-dropzone))
+- **[Dropzone.js](https://www.dropzonejs.com/)**: File upload library
