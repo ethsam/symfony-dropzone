@@ -54,7 +54,11 @@ jobs:
         with:
           dependency-versions: ${{ matrix.dependencies || 'highest' }}
 
+      # Fail on deprecations coming from this bundle, tolerate the ones its
+      # dependencies trigger between themselves, which we cannot act on.
       - run: vendor/bin/phpunit
+        env:
+          SYMFONY_DEPRECATIONS_HELPER: max[self]=0
 
   security:
     name: Dependency audit
@@ -67,5 +71,7 @@ jobs:
           php-version: '8.3'
           coverage: none
           tools: composer:v2
+
+      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
 
       - run: composer audit --no-interaction
