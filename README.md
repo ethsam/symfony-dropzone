@@ -633,4 +633,5 @@ Originally forked from [emr-dev/symfony-dropzone](https://github.com/emr-dev/sym
 
 - **Samuel Etheve**: Current maintainer
 - **Emomaliev M.**: Original author ([emr-dev/symfony-dropzone](https://github.com/emr-dev/symfony-dropzone))
+- **[Nico Hiort af Ornäs](https://github.com/nicodemuz)**: `maxFilesize` option, and the reports that led to the 2.1.0 security review
 - **[Dropzone.js](https://www.dropzonejs.com/)**: File upload library

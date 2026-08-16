@@ -644,4 +644,5 @@ Originalmente bifurcado desde [emr-dev/symfony-dropzone](https://github.com/emr-
 
 - **Samuel Etheve**: Responsable actual
 - **Emomaliev M.**: Autor original ([emr-dev/symfony-dropzone](https://github.com/emr-dev/symfony-dropzone))
+- **[Nico Hiort af Ornäs](https://github.com/nicodemuz)**: opción `maxFilesize`, y los informes que llevaron a la revisión de seguridad de la 2.1.0
 - **[Dropzone.js](https://www.dropzonejs.com/)**: Biblioteca de carga de archivos

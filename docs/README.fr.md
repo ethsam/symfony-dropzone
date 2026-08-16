@@ -643,4 +643,5 @@ Forké à l'origine de [emr-dev/symfony-dropzone](https://github.com/emr-dev/sym
 
 - **Samuel Etheve**: Responsable actuel
 - **Emomaliev M.**: Auteur original ([emr-dev/symfony-dropzone](https://github.com/emr-dev/symfony-dropzone))
+- **[Nico Hiort af Ornäs](https://github.com/nicodemuz)** : option `maxFilesize`, et les signalements qui ont mené à la revue de sécurité de la 2.1.0
 - **[Dropzone.js](https://www.dropzonejs.com/)**: Bibliothèque de téléchargement de fichiers
