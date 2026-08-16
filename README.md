@@ -291,7 +291,8 @@ That's it! The bundle handles everything:
 | `acceptedFiles` | string | null | MIME types accepted (e.g., `"image/*,.pdf"`) |
 | `addRemoveLinks` | bool | true | Show "Remove" link on file previews |
 | `headers` | array | [] | Custom HTTP headers sent with requests (e.g., `['Authorization' => 'Bearer TOKEN']`) |
-| `formData` | array | [] | Additional form data sent with upload request |
+| `formData` | array | [] | Additional form data sent with upload request (string values) |
+| `formDataRaw` | array | [] | Additional form data sent with upload request; values are output unquoted (JS expressions, e.g. a variable name) |
 | `withCredentials` | int | 0 | XHR `withCredentials` setting (0 or 1) |
 | `thumbnailWidth` | int | 120 | Width of preview thumbnails in pixels |
 | `thumbnailHeight` | int | 120 | Height of preview thumbnails in pixels |
@@ -468,6 +469,27 @@ public function upload(Request $request, EntityManagerInterface $em): JsonRespon
     $file = $request->files->get('file');
     // ... handle upload
 }
+```
+
+### With Raw Form Data (JavaScript expressions)
+
+Use `formDataRaw` when a value must be a live JS expression (for example a client-generated UUID variable), not a quoted string:
+
+```html
+<script>
+    var uuid = crypto.randomUUID();
+</script>
+```
+
+```php
+$builder->add('uploads', DropzoneType::class, [
+    'class' => Upload::class,
+    'uploadHandler' => 'app_upload_file',
+    'removeHandler' => 'app_remove_file',
+    'formDataRaw' => [
+        'uuid' => 'uuid', // appended as formData.append('uuid', uuid)
+    ],
+]);
 ```
 
 ## Upgrading from v1

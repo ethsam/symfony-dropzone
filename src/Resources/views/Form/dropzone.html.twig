@@ -146,6 +146,11 @@
                     formData.append('{{ key }}', '{{ value }}');
                     {% endfor %}
                     {% endif %}
+                    {% if formDataRaw is defined and formDataRaw is iterable %}
+                    {% for key, value in formDataRaw %}
+                    formData.append('{{ key }}', {{ value|raw }});
+                    {% endfor %}
+                    {% endif %}
                 },
                 removedfile: function (file) {
                     if (file.id) {

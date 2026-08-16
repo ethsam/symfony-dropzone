@@ -78,6 +78,7 @@ class DropzoneType extends AbstractType
             'filesizeBase' => 1024,
             'headers' => [],
             'formData' => [],
+            'formDataRaw' => [],
             'ignoreHiddenFiles' => true,
             'acceptedFiles' => null,
             'autoProcessQueue' => true,
@@ -115,6 +116,7 @@ class DropzoneType extends AbstractType
         $view->vars['uploadHandlerMethod'] = $options['uploadHandlerMethod'];
         $view->vars['removeHandlerMethod'] = $options['removeHandlerMethod'];
         $view->vars['formData'] = $options['formData'];
+        $view->vars['formDataRaw'] = $options['formDataRaw'];
         $view->vars['choice_src'] = $options['choice_src'];
         $view->vars['withCredentials'] = $options['withCredentials'];
         $view->vars['thumbnailWidth'] = $options['thumbnailWidth'];
