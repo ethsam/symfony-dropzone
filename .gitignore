@@ -5,3 +5,5 @@ composer.lock
 
 # Claude Code
 /.claude/
+# Notes de livraison locales, hors depot
+/.livraison/
