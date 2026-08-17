@@ -60,6 +60,9 @@ final class DoctrineKit
                 );
             }
 
+            // Parameters stay untyped on purpose. doctrine/persistence 2 declares
+            // them without a type and 3 declares them as string, and only the
+            // untyped form is compatible with both.
             protected function getService($name): object
             {
                 return $this->managers[$name];
