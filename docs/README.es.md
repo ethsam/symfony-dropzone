@@ -53,6 +53,105 @@ Agrega lo siguiente a tu plantilla base (por ejemplo, `base.html.twig`):
 
 ¡Eso es! Estás listo para usar `DropzoneType` en tus formularios.
 
+## Ejemplo mínimo
+
+Lo más corto que funciona de verdad, de principio a fin. Cuatro archivos, nada
+opcional. El [Inicio rápido](#inicio-rápido) de abajo cuenta lo mismo detallando
+la relación entre entidades.
+
+**1. La entidad de archivo.** El widget lee `getId()`, `getFilename()` y
+`getSrc()`. `__toString()` también es obligatorio: el widget renderiza la entidad
+misma dentro del campo oculto, y PHP lanza un error fatal sin él.
+
+```php
+// src/Entity/Attachment.php
+#[ORM\Entity]
+class Attachment implements \Stringable
+{
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    private ?int $id = null;
+
+    #[ORM\Column(length: 255)]
+    private string $filename = '';
+
+    #[ORM\Column(length: 255)]
+    private string $src = '';
+
+    public function getId(): ?int { return $this->id; }
+    public function getFilename(): string { return $this->filename; }
+    public function setFilename(string $filename): self { $this->filename = $filename; return $this; }
+    public function getSrc(): string { return $this->src; }
+    public function setSrc(string $src): self { $this->src = $src; return $this; }
+
+    public function __toString(): string { return (string) $this->id; }
+}
+```
+
+**2. El campo del formulario.**
+
+```php
+// src/Form/ArticleType.php
+$builder->add('attachments', DropzoneType::class, [
+    'class' => Attachment::class,
+    'uploadHandler' => 'app_attachment_upload',
+    'removeHandler' => 'app_attachment_remove',
+    'maxFiles' => 10,
+]);
+```
+
+**3. Las dos rutas.** El controlador de carga debe responder `{"id": <int>}`: ese
+identificador es el que el widget coloca en el campo oculto. El controlador de
+eliminación recibe el identificador en la URL.
+
+```php
+// src/Controller/AttachmentController.php
+#[Route('/attachment/upload', name: 'app_attachment_upload', methods: ['POST'])]
+#[IsGranted('ROLE_USER')]
+public function upload(Request $request, EntityManagerInterface $em): JsonResponse
+{
+    $uploaded = $request->files->get('file');
+
+    // Nunca construyas la ruta de almacenamiento a partir del nombre del
+    // cliente: es un dato que envía el usuario.
+    $storedName = bin2hex(random_bytes(8)).'.'.$uploaded->guessExtension();
+    $uploaded->move($this->getParameter('kernel.project_dir').'/public/uploads', $storedName);
+
+    $attachment = (new Attachment())
+        ->setFilename($uploaded->getClientOriginalName())
+        ->setSrc('/uploads/'.$storedName);
+
+    $em->persist($attachment);
+    $em->flush();
+
+    return $this->json(['id' => $attachment->getId()]);
+}
+
+#[Route('/attachment/{id}/remove', name: 'app_attachment_remove', methods: ['DELETE'])]
+#[IsGranted('ROLE_USER')]
+public function remove(Attachment $attachment, EntityManagerInterface $em): JsonResponse
+{
+    // Lee el identificador antes del flush: Doctrine lo borra al eliminar.
+    $id = $attachment->getId();
+
+    $em->remove($attachment);
+    $em->flush();
+
+    return $this->json(['id' => $id]);
+}
+```
+
+**4. La plantilla.** Dropzone.js ya debe estar cargado, consulta
+[el paso 2](#paso-2-incluir-dropzonejs).
+
+```twig
+{{ form_start(form) }}
+    {{ form_widget(form.attachments) }}
+    <button type="submit">Guardar</button>
+{{ form_end(form) }}
+```
+
 ## Inicio rápido
 
 ### 1. Define tu entidad de archivo
@@ -341,7 +440,45 @@ eventos DOM llamados `dropzone:sending`, `dropzone:success` y demás, con un
 arriba son los del bundle, con un detail con nombres, y funcionan igual en
 Dropzone 5, que no tiene ningún evento DOM.
 
-Añadir a cada carga un valor calculado en el navegador:
+### Enviar un campo adicional con cada carga
+
+La opción `formData` cubre los valores conocidos al construir el formulario, en
+PHP. No puede transportar nada de lo que el usuario escribe o selecciona en la
+página, porque las cargas se envían por AJAX mucho después de renderizarla. Para
+eso está `symfony-dropzone:sending`.
+
+Supongamos que el mismo formulario tiene un selector de categoría y que el
+controlador de carga necesita saber cuál estaba seleccionada en el momento en que
+se soltó el archivo:
+
+```twig
+{{ form_row(form.category) }}
+{{ form_widget(form.attachments) }}
+
+<script>
+    document.addEventListener('symfony-dropzone:sending', function (event) {
+        var category = document.getElementById('{{ form.category.vars.id }}');
+
+        event.detail.formData.append('category', category.value);
+    });
+</script>
+```
+
+El controlador lo lee como cualquier otro campo enviado:
+
+```php
+public function upload(Request $request): JsonResponse
+{
+    $category = $request->request->get('category');
+    $file = $request->files->get('file');
+    // ...
+}
+```
+
+Trata ese valor como entrada del usuario, igual que el resto de la petición. El
+navegador decide qué envía, así que valídalo en el servidor.
+
+Un valor sin ningún campo asociado, calculado en el navegador, funciona igual:
 
 ```html
 <script>
@@ -377,12 +514,15 @@ Tu entidad de archivo/adjunto debe implementar:
 - **`getId(): ?int`**: Retorna el identificador único
 - **`getFilename(): string`**: Retorna el nombre del archivo para mostrar
 - **Getter para propiedad `choice_src`**: Por defecto `getSrc(): string`, retorna la URL/ruta del archivo para mostrar miniaturas
+- **`__toString(): string`**: Retorna el identificador. El widget renderiza la
+  entidad misma dentro del campo oculto, así que una entidad que no se puede
+  convertir en cadena rompe el formulario en cuanto contiene archivos existentes.
 
 Ejemplo de entidad mínima:
 
 ```php
 #[ORM\Entity]
-class Attachment
+class Attachment implements \Stringable
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -400,6 +540,8 @@ class Attachment
     public function setFilename(string $filename): self { $this->filename = $filename; return $this; }
     public function getSrc(): string { return $this->src; }
     public function setSrc(string $src): self { $this->src = $src; return $this; }
+
+    public function __toString(): string { return (string) $this->id; }
 }
 ```
 
@@ -425,7 +567,14 @@ class Attachment
 2. Dropzone.js envía DELETE (o POST) a la ruta `removeHandler`
 3. El controlador elimina la entidad, retorna `{"id": <int>}`
 4. El widget elimina la vista previa del DOM
-5. En el próximo envío de formulario, el ID eliminado no se incluye, la relación se actualiza
+
+El paso 2 es el que realmente desvincula el archivo, y se espera que tu
+controlador haga efectiva la eliminación por su cuenta. No cuentes con el envío
+del formulario posterior para terminar el trabajo: los archivos que ya estaban
+adjuntos cuando se renderizó la página también figuran en campos ocultos escritos
+por Symfony, que el widget no elimina. Sus identificadores se siguen enviando
+después de que desaparezca la vista previa. Si tu controlador de eliminación solo
+desvincula el archivo en lugar de borrarlo, ese envío volverá a vincularlo.
 
 ## Ejemplos
 

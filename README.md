@@ -53,6 +53,104 @@ Add the following to your base template (e.g., `base.html.twig`):
 
 That's it! You're ready to use `DropzoneType` in your forms.
 
+## Minimal Example
+
+The shortest thing that actually works, end to end. Four files, nothing optional.
+The [Quick Start](#quick-start) below is the same story with the entity
+relationship spelled out.
+
+**1. The file entity.** `getId()`, `getFilename()` and `getSrc()` are read by the
+widget. `__toString()` is required too: the widget renders the entity itself into
+a hidden field, and PHP raises a fatal error without it.
+
+```php
+// src/Entity/Attachment.php
+#[ORM\Entity]
+class Attachment implements \Stringable
+{
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    private ?int $id = null;
+
+    #[ORM\Column(length: 255)]
+    private string $filename = '';
+
+    #[ORM\Column(length: 255)]
+    private string $src = '';
+
+    public function getId(): ?int { return $this->id; }
+    public function getFilename(): string { return $this->filename; }
+    public function setFilename(string $filename): self { $this->filename = $filename; return $this; }
+    public function getSrc(): string { return $this->src; }
+    public function setSrc(string $src): self { $this->src = $src; return $this; }
+
+    public function __toString(): string { return (string) $this->id; }
+}
+```
+
+**2. The form field.**
+
+```php
+// src/Form/ArticleType.php
+$builder->add('attachments', DropzoneType::class, [
+    'class' => Attachment::class,
+    'uploadHandler' => 'app_attachment_upload',
+    'removeHandler' => 'app_attachment_remove',
+    'maxFiles' => 10,
+]);
+```
+
+**3. The two routes.** The upload handler must answer `{"id": <int>}`: that id is
+what the widget puts in the hidden field. The remove handler receives the id in
+the URL.
+
+```php
+// src/Controller/AttachmentController.php
+#[Route('/attachment/upload', name: 'app_attachment_upload', methods: ['POST'])]
+#[IsGranted('ROLE_USER')]
+public function upload(Request $request, EntityManagerInterface $em): JsonResponse
+{
+    $uploaded = $request->files->get('file');
+
+    // Never build the stored path from the client name: it is user input.
+    $storedName = bin2hex(random_bytes(8)).'.'.$uploaded->guessExtension();
+    $uploaded->move($this->getParameter('kernel.project_dir').'/public/uploads', $storedName);
+
+    $attachment = (new Attachment())
+        ->setFilename($uploaded->getClientOriginalName())
+        ->setSrc('/uploads/'.$storedName);
+
+    $em->persist($attachment);
+    $em->flush();
+
+    return $this->json(['id' => $attachment->getId()]);
+}
+
+#[Route('/attachment/{id}/remove', name: 'app_attachment_remove', methods: ['DELETE'])]
+#[IsGranted('ROLE_USER')]
+public function remove(Attachment $attachment, EntityManagerInterface $em): JsonResponse
+{
+    // Read the id before the flush: Doctrine clears it on removal.
+    $id = $attachment->getId();
+
+    $em->remove($attachment);
+    $em->flush();
+
+    return $this->json(['id' => $id]);
+}
+```
+
+**4. The template.** Dropzone.js must already be loaded, see
+[Step 2](#step-2-include-dropzonejs).
+
+```twig
+{{ form_start(form) }}
+    {{ form_widget(form.attachments) }}
+    <button type="submit">Save</button>
+{{ form_end(form) }}
+```
+
 ## Quick Start
 
 ### 1. Define Your File Entity
@@ -339,7 +437,44 @@ own DOM events named `dropzone:sending`, `dropzone:success` and so on, with a
 events above are the bundle's, with a named detail, and they work the same on
 Dropzone 5 which has no DOM events at all.
 
-Adding a value computed in the browser to every upload:
+### Sending an extra field with each upload
+
+The `formData` option covers values known when the form is built, in PHP. It
+cannot carry anything the user types or picks on the page, because uploads are
+sent by AJAX long after the page was rendered. That is what
+`symfony-dropzone:sending` is for.
+
+Say the same form has a category selector, and the upload handler needs to know
+which category was selected at the moment the file was dropped:
+
+```twig
+{{ form_row(form.category) }}
+{{ form_widget(form.attachments) }}
+
+<script>
+    document.addEventListener('symfony-dropzone:sending', function (event) {
+        var category = document.getElementById('{{ form.category.vars.id }}');
+
+        event.detail.formData.append('category', category.value);
+    });
+</script>
+```
+
+The handler reads it like any other posted field:
+
+```php
+public function upload(Request $request): JsonResponse
+{
+    $category = $request->request->get('category');
+    $file = $request->files->get('file');
+    // ...
+}
+```
+
+Treat that value as user input, exactly like the rest of the request. The browser
+decides what it sends, so validate it server side.
+
+A value that has no field at all, computed in the browser, works the same way:
 
 ```html
 <script>
@@ -374,12 +509,15 @@ Your file/attachment entity must implement:
 - **`getId(): ?int`**: Returns the unique identifier
 - **`getFilename(): string`**: Returns the filename for display
 - **Getter for `choice_src` property**: By default `getSrc(): string`, returns the file URL/path for thumbnail display
+- **`__toString(): string`**: Returns the identifier. The widget renders the
+  entity itself into the hidden field, so an entity that is not stringable makes
+  the form crash as soon as it holds existing files.
 
 Example minimal entity:
 
 ```php
 #[ORM\Entity]
-class Attachment
+class Attachment implements \Stringable
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -397,6 +535,8 @@ class Attachment
     public function setFilename(string $filename): self { $this->filename = $filename; return $this; }
     public function getSrc(): string { return $this->src; }
     public function setSrc(string $src): self { $this->src = $src; return $this; }
+
+    public function __toString(): string { return (string) $this->id; }
 }
 ```
 
@@ -422,7 +562,14 @@ class Attachment
 2. Dropzone.js sends DELETE (or POST) to `removeHandler` route
 3. Handler deletes entity, returns `{"id": <int>}`
 4. Widget removes preview from DOM
-5. On next form submission, removed ID is not included, relationship is updated
+
+Step 2 is what actually detaches the file, and your handler is expected to make
+the removal effective on its own. Do not count on the form submission that
+follows to finish the job: files that were already attached when the page was
+rendered are also listed in hidden fields written by Symfony, which the widget
+does not remove. Their ids are still submitted after the preview disappears. If
+your remove handler only unlinks the file instead of deleting it, that
+submission will link it back.
 
 ## Examples
 
