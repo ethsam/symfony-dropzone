@@ -26,6 +26,7 @@
 - **PHP** : ≥8.1
 - **Symfony** : 5.4, 6.x, 7.x
 - **Doctrine ORM** : 2.12+
+- **Pont Doctrine de Symfony** : installé par Composer, il fournit l'`EntityType` que construit le mode fichier unique
 - **Dropzone.js** : 6.0+ (inclus via CDN)
 
 ## Installation

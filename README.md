@@ -26,6 +26,7 @@
 - **PHP**: ≥8.1
 - **Symfony**: 5.4, 6.x, 7.x
 - **Doctrine ORM**: 2.12+
+- **Symfony Doctrine bridge**: pulled in by Composer, it provides the `EntityType` the single-file mode builds
 - **Dropzone.js**: 6.0+ (included via CDN)
 
 ## Installation

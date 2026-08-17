@@ -33,6 +33,8 @@ are never decoded and a backslash is enough to break out of a string literal.
 
 `tests/Form/DropzoneWidgetRenderTest.php` enforces this: it renders the widget
 with hostile stored values and asserts the script block comes out identical.
+`tests/Form/DropzoneSingleModeRenderTest.php` does the same for the single-file
+mode, which renders through an `EntityType` instead of hidden fields.
 A pull request that interpolates a value into the script will fail there. Send
 data through the JSON payload instead, and read it from `config` in the script.
 
